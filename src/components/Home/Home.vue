@@ -13,7 +13,7 @@
           <form @submit.prevent="searchInputCB">
             <div class="fye-hsearch-input">
               <img src="@/assets/search-ico.svg" alt="">
-              <input type="search" placeholder="City name here.." v-model="searchCityInp">
+              <input type="text" placeholder="City name here.." id="search-filter" v-model="searchCityInp">
             </div>
           </form>
         </div>
@@ -26,34 +26,8 @@
       </div>
 
       <div class="fye-result card">
-        <div class="fye-result-table" v-if="showTable">
-          <table>
-            <thead>
-              <tr>
-                <th>IFSC</th>
-                <th>Name</th>
-                <th>Branch</th>
-                <th>City</th>
-                <th>District</th>
-                <th>State</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <tr v-for="(bank, i) in data" :key="i">
-                <td>{{bank.ifsc || '---'}}</td>
-                <td>{{bank.bank_name || '---'}}</td>
-                <td>{{bank.branch || '---'}}</td>
-                <td>{{bank.city || '---'}}</td>
-                <td>{{bank.district || '---'}}</td>
-                <td>{{bank.state || '---'}}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="fye-no-results" v-else>
-          <h4>Sorry! No results found.</h4>
+        <div class="fye-result-table">
+          <table id="fye-table"></table>
         </div>
       </div>
     </div>
@@ -61,71 +35,107 @@
 </template>
 
 <script>
-  import { mapActions } from 'vuex';
+import { mapActions } from 'vuex';
 
-  export default {
-    name: 'Home',
-    data () {
-      return {
-        cityNames: [ 'Bangalore', 'Mumbai', 'Delhi', 'Kolkatha', 'Kochi' ],
-        city: 'Bangalore',
-        data: null,
-        searchCityInp: '',
-        showLoading: true,
-        showTable: false
-      }
-    },
-    created () {
-      this.initTemp()
-    },
-    watch: {
-      city (city) {
-        city = city.toUpperCase();
-        this.fetchData(city);
-      }
-    },
-    methods: {
-      ...mapActions([
+export default {
+  name: 'Home',
+  data () {
+    return {
+      cityNames: [ 'Bangalore', 'Mumbai', 'Delhi', 'Kochi' ],
+      city: 'Bangalore',
+      data: null,
+      searchCityInp: '',
+      showLoading: false,
+      showTable: false,
+      dataTable: undefined
+    }
+  },
+  created () {
+    // this.initTemp();
+  },
+  mounted () {
+    this.initTable();
+
+    this.initTemp();
+  },
+  watch: {
+    city (city) {
+      city = city.toUpperCase();
+      this.fetchData(city);
+    }
+  },
+  methods: {
+    ...mapActions([
       'actGetBankData'
-      ]),
-      initTemp () {
-        let city = this.city.toUpperCase();
+    ]),
+    initTemp () {
+      let city = this.city.toUpperCase();
 
+      this.fetchData(city);
+    },
+    searchInputCB () {
+      let city = this.searchCityInp.toUpperCase();
+
+      if (city && city.length > 3) {
         this.fetchData(city);
-      },
-      searchInputCB () {
-        let city = this.searchCityInp.toUpperCase();
-
-        if (city && city.length > 3) {
-          this.fetchData(city);
-        }
-
-      },
-      fetchData (city) {
-        this.showLoading = true;
-        this.showTable = false;
-
-        let offset = 0;
-        let limit = 50;
-
-        let params = { city, offset, limit };
-
-        this.actGetBankData(params).then(response => {
-          if (response && response.length) {
-            this.data = response;
-
-            this.showLoading = false;
-            this.showTable = true;
-          } else {
-            this.showLoading = false;
-            this.showTable = false;
-          }
-        }).catch(error => {
-          // console.log('[initTemp -> error]', error)
-        });
       }
+
+    },
+    fetchData (city) {
+      // this.showLoading = true;
+      // this.showTable = false;
+
+      let offset = 0;
+      let limit = 50;
+
+      let params = { city, offset, limit };
+
+      this.actGetBankData(params).then(response => {
+        if (response && response.length) {
+
+          let data = Object.keys(response).map(key => {
+            return Object.values(response[key])
+          })
+
+          this.dataTable.clear();
+          this.dataTable.rows.add(data);
+          this.dataTable.draw();
+        } else {
+          this.showLoading = false;
+          this.showTable = false;
+        }
+      }).catch(error => {
+        // console.log('[initTemp -> error]', error)
+      });
+    },
+    initTable () {
+      let self = this;
+
+      this.dataTable = jQuery('#fye-table').DataTable( {
+        columns: [
+          { title: "IFSC" },
+          { title: "ID" },
+          { title: "Bank Name" },
+          { title: "Branch" },
+          { title: "Address" },
+          { title: "City" },
+          { title: "Distict" },
+          { title: "State" }
+        ],
+        pageLength: 20,
+        bLengthChange : false,
+        bFilter : true,
+        bInfo : false
+      } );
+
+      jQuery('#search-filter').on('keyup', () => {
+        this.dataTable.search(this.searchCityInp).draw();
+      });
+
+      jQuery('#fye-table_filter').hide();
     }
   }
+}
 </script>
 
 <style lang="css">
@@ -179,6 +189,7 @@
     border-radius: 2px;
     border-radius: 2px;
     background-color: transparent;
+    font-size: 13px;
   }
   select {
     -webkit-appearance: none;
@@ -217,5 +228,21 @@
   }
   .fye-loader img {
     width: 50px;
+  }
+  #fye-table_paginate {
+    text-align: center;
+    margin-top: 40px;
+  }
+  #fye-table_paginate a {
+    font-size: 12px;
+    padding: 10px 15px;
+    margin-right: 10px;
+    background-color: #aac1d6;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+  }
+  td.dataTables_empty {
+    text-align: center;
   }
 </style>
